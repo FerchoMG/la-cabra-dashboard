@@ -229,7 +229,7 @@ function App() {
   const [error, setError] = useState('')
   const [query, setQuery] = useState('')
   const [resultFilter, setResultFilter] = useState('Todos')
-  const [monthFilter, setMonthFilter] = useState(currentMonthKey())
+  const [monthFilter, setMonthFilter] = useState("all")
 
   async function loadData(selected = league) {
     setLoading(true)
