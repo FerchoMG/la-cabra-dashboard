@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { Trophy, Target, TrendingUp, Percent, Medal, RefreshCcw, Search, Crown, CalendarDays } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from 'recharts'
 import './styles.css'
+import './vip.css'
 
 const SHEET_ID = '1g3jc06lKdf2wczWF8RfBHsvBvXcnwZvBN57pr5o8H58'
 const LEAGUES = [
@@ -136,6 +137,16 @@ function formatDate(value) {
   return new Intl.DateTimeFormat('es', { day: '2-digit', month: 'short', year: 'numeric' }).format(date)
 }
 
+
+function formatCurrency(value) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value)
+}
+
 function monthKey(value) {
   const date = parseDate(value)
   if (!date) return 'Sin fecha'
@@ -230,6 +241,7 @@ function App() {
   const [query, setQuery] = useState('')
   const [resultFilter, setResultFilter] = useState('Todos')
   const [monthFilter, setMonthFilter] = useState('Todos')
+  const [bankAmount, setBankAmount] = useState('500')
 
   async function loadData(selected = league) {
     setLoading(true)
@@ -293,6 +305,11 @@ function App() {
     const totalProfit = closed.reduce((sum, row) => sum + row.profit, 0)
     const totalStake = closed.reduce((sum, row) => sum + row.stake, 0)
     const avgOdds = closed.length ? closed.reduce((sum, row) => sum + row.cuota, 0) / closed.length : 0
+    const simulatedBank = Math.max(0, parseNumber(bankAmount))
+    const unitValue = simulatedBank / 100
+    const simulatedProfitUsd = totalProfit * unitValue
+    const simulatedFinalBank = simulatedBank + simulatedProfitUsd
+
     return {
       totalProfit,
       totalStake,
@@ -302,9 +319,13 @@ function App() {
       wins,
       losses,
       push,
-      pending
+      pending,
+      simulatedBank,
+      unitValue,
+      simulatedProfitUsd,
+      simulatedFinalBank
     }
-  }, [filtered])
+  }, [filtered, bankAmount])
 
   const lineData = useMemo(() => {
     let acc = 0
@@ -334,6 +355,9 @@ function App() {
       .sort((a, b) => Math.abs(b.profit) - Math.abs(a.profit))
       .slice(0, 10)
   }, [filtered, league])
+
+  const vipGroupLabel = league === 'FREE' ? 'grupo FREE' : `grupo VIP ${league}`
+  const profitSign = stats.simulatedProfitUsd >= 0 ? '+' : ''
 
   return (
     <main className="app-shell">
@@ -366,6 +390,49 @@ function App() {
         <MetricCard icon={Percent} label="Yield" value={`${stats.yieldValue.toFixed(2)}%`} tone={stats.yieldValue >= 0 ? 'green' : 'red'} />
         <MetricCard icon={Target} label="Winrate" value={`${stats.winrate.toFixed(2)}%`} hint={`${stats.wins}G / ${stats.losses}P`} tone="gold" />
         <MetricCard icon={Medal} label="Cuota promedio" value={stats.avgOdds.toFixed(2)} tone="gold" />
+      </section>
+
+      <section className="vip-simulator-card">
+        <div className="vip-copy">
+          <span><Crown size={15} /> Simulador de conversión</span>
+
+          <div className="vip-bank-controls">
+            <label htmlFor="vip-bank">Modifica tu bank inicial</label>
+            <div className="vip-input-row">
+              <span>$</span>
+              <input
+                id="vip-bank"
+                type="number"
+                min="0"
+                step="50"
+                value={bankAmount}
+                onChange={(event) => setBankAmount(event.target.value)}
+                placeholder="500"
+              />
+            </div>
+            <div className="vip-presets">
+              {[250, 500, 1000, 2000].map(amount => (
+                <button key={amount} type="button" onClick={() => setBankAmount(String(amount))}>
+                  {formatCurrency(amount)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <h2>Con un bank de {formatCurrency(stats.simulatedBank)}, siguiendo el {vipGroupLabel}, hubieras ganado</h2>
+          <strong className={stats.simulatedProfitUsd >= 0 ? 'profit-pos' : 'profit-neg'}>
+            {profitSign}{formatCurrency(stats.simulatedProfitUsd)}
+          </strong>
+          <p>
+            Cálculo basado en el profit actual de {stats.totalProfit.toFixed(2)} unidades. Usamos una gestión de 100 unidades,
+            donde cada unidad equivale a {formatCurrency(stats.unitValue)}. Cambia el bank para simular tu posible resultado histórico.
+          </p>
+        </div>
+        <div className="vip-final-bank">
+          <span>Bank final estimado</span>
+          <strong>{formatCurrency(stats.simulatedFinalBank)}</strong>
+          <small>Resultado histórico según los filtros aplicados. No representa garantía de resultados futuros.</small>
+        </div>
       </section>
 
       <section className="charts-grid">
