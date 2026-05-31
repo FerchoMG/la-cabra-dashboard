@@ -229,7 +229,7 @@ function App() {
   const [error, setError] = useState('')
   const [query, setQuery] = useState('')
   const [resultFilter, setResultFilter] = useState('Todos')
-  const [monthFilter, setMonthFilter] = useState("all")
+  const [monthFilter, setMonthFilter] = useState('Todos')
 
   async function loadData(selected = league) {
     setLoading(true)
@@ -237,7 +237,7 @@ function App() {
     try {
       const data = await fetchSheet(leagueToSheetName(selected))
       setRows(data)
-      setMonthFilter(currentMonthKey())
+      setMonthFilter('Todos')
       setResultFilter('Todos')
     } catch (err) {
       setError(err.message)
