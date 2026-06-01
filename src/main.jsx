@@ -4,6 +4,7 @@ import { Trophy, Target, TrendingUp, Percent, Medal, RefreshCcw, Search, Crown, 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from 'recharts'
 import './styles.css'
 import './vip.css'
+import './date-filter.css'
 
 const SHEET_ID = '1g3jc06lKdf2wczWF8RfBHsvBvXcnwZvBN57pr5o8H58'
 const LEAGUES = [
@@ -137,6 +138,27 @@ function formatDate(value) {
   return new Intl.DateTimeFormat('es', { day: '2-digit', month: 'short', year: 'numeric' }).format(date)
 }
 
+function dateKey(value) {
+  const date = parseDate(value)
+  if (!date) return ''
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function parseInputDate(value) {
+  if (!value) return null
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) return null
+  const [, year, month, day] = match
+  return new Date(Number(year), Number(month) - 1, Number(day))
+}
+
+function sameDay(a, b) {
+  return dateKey(a) === dateKey(b)
+}
+
 
 function formatCurrency(value) {
   return new Intl.NumberFormat('en-US', {
@@ -241,6 +263,9 @@ function App() {
   const [query, setQuery] = useState('')
   const [resultFilter, setResultFilter] = useState('Todos')
   const [monthFilter, setMonthFilter] = useState('Todos')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [selectedDate, setSelectedDate] = useState('')
   const [bankAmount, setBankAmount] = useState('500')
 
   async function loadData(selected = league) {
@@ -250,6 +275,9 @@ function App() {
       const data = await fetchSheet(leagueToSheetName(selected))
       setRows(data)
       setMonthFilter('Todos')
+      setStartDate('')
+      setEndDate('')
+      setSelectedDate('')
       setResultFilter('Todos')
     } catch (err) {
       setError(err.message)
@@ -278,15 +306,54 @@ function App() {
     return ['Todos', ...monthOptions, ...(hasNoDate ? ['Sin fecha'] : [])]
   }, [rows])
 
+  const handleMonthChange = (value) => {
+    setMonthFilter(value)
+    setSelectedDate('')
+  }
+
+  const handleStartDateChange = (value) => {
+    setStartDate(value)
+    setSelectedDate('')
+  }
+
+  const handleEndDateChange = (value) => {
+    setEndDate(value)
+    setSelectedDate('')
+  }
+
+  const clearDateFilters = () => {
+    setStartDate('')
+    setEndDate('')
+    setSelectedDate('')
+    setMonthFilter('Todos')
+  }
+
+  const selectChartDate = (key) => {
+    if (!key) return
+    setSelectedDate(key)
+    setStartDate('')
+    setEndDate('')
+    setMonthFilter('Todos')
+  }
+
   const filtered = useMemo(() => {
+    const start = parseInputDate(startDate)
+    const end = parseInputDate(endDate)
+    const rangeStart = start && end && start > end ? end : start
+    const rangeEnd = start && end && start > end ? start : end
+
     return rows.filter((row) => {
       const q = normalizeKey(query)
+      const rowDate = parseDate(row.fecha)
       const matchesQuery = !q || normalizeKey(`${row.partido} ${row.mercado}`).includes(q)
       const matchesResult = resultFilter === 'Todos' || normalizeKey(row.resultado) === normalizeKey(resultFilter)
       const matchesMonth = monthFilter === 'Todos' || monthKey(row.fecha) === monthFilter
-      return matchesQuery && matchesResult && matchesMonth
+      const matchesStart = !rangeStart || (rowDate && rowDate >= rangeStart)
+      const matchesEnd = !rangeEnd || (rowDate && rowDate <= new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), rangeEnd.getDate(), 23, 59, 59, 999))
+      const matchesSelectedDate = !selectedDate || sameDay(row.fecha, selectedDate)
+      return matchesQuery && matchesResult && matchesMonth && matchesStart && matchesEnd && matchesSelectedDate
     })
-  }, [rows, query, resultFilter, monthFilter])
+  }, [rows, query, resultFilter, monthFilter, startDate, endDate, selectedDate])
 
   const tableRows = useMemo(() => {
     return [...filtered].sort((a, b) => dateTime(b.fecha) - dateTime(a.fecha))
@@ -328,13 +395,31 @@ function App() {
   }, [filtered, bankAmount])
 
   const lineData = useMemo(() => {
-    let acc = 0
-    return [...filtered]
+    const dailyMap = new Map()
+
+    filtered
       .filter(isClosedBet)
-      .sort((a, b) => dateTime(a.fecha) - dateTime(b.fecha))
+      .forEach((row) => {
+        const key = dateKey(row.fecha)
+        if (!key) return
+        const current = dailyMap.get(key) || { dateKey: key, rawDate: row.fecha, diario: 0, picks: 0 }
+        current.diario += row.profit
+        current.picks += 1
+        dailyMap.set(key, current)
+      })
+
+    let acc = 0
+    return Array.from(dailyMap.values())
+      .sort((a, b) => dateTime(a.rawDate) - dateTime(b.rawDate))
       .map((row) => {
-        acc += row.profit
-        return { fecha: formatDate(row.fecha), profit: Number(acc.toFixed(2)), diario: row.profit }
+        acc += row.diario
+        return {
+          dateKey: row.dateKey,
+          fecha: formatDate(row.rawDate),
+          profit: Number(acc.toFixed(2)),
+          diario: Number(row.diario.toFixed(2)),
+          picks: row.picks
+        }
       })
   }, [filtered])
 
@@ -358,6 +443,7 @@ function App() {
 
   const vipGroupLabel = league === 'FREE' ? 'grupo FREE' : `grupo VIP ${league}`
   const profitSign = stats.simulatedProfitUsd >= 0 ? '+' : ''
+  const activeDateLabel = selectedDate ? formatDate(selectedDate) : ''
 
   return (
     <main className="app-shell">
@@ -378,10 +464,22 @@ function App() {
 
       <section className="toolbar glass-panel">
         <div className="input-wrap"><Search size={18} /><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar partido, jugador o mercado" /></div>
-        <select value={monthFilter} onChange={e => setMonthFilter(e.target.value)}>{months.map(m => <option key={m}>{m}</option>)}</select>
+        <select value={monthFilter} onChange={e => handleMonthChange(e.target.value)}>{months.map(m => <option key={m}>{m}</option>)}</select>
+        <div className="date-range-filters">
+          <label>Desde <input type="date" value={startDate} onChange={e => handleStartDateChange(e.target.value)} /></label>
+          <label>Hasta <input type="date" value={endDate} onChange={e => handleEndDateChange(e.target.value)} /></label>
+        </div>
         <select value={resultFilter} onChange={e => setResultFilter(e.target.value)}>{['Todos', 'Ganada', 'Perdida', 'Nula', 'Pendiente'].map(r => <option key={r}>{r}</option>)}</select>
+        <button className="clear-date-filters" onClick={clearDateFilters} type="button">Limpiar fechas</button>
         <button className="refresh" onClick={() => loadData()}><RefreshCcw size={17} /> Actualizar</button>
       </section>
+
+      {selectedDate ? (
+        <section className="selected-date-chip glass-panel">
+          <span>Filtrando solo el día <strong>{activeDateLabel}</strong></span>
+          <button type="button" onClick={() => setSelectedDate('')}>Ver todos los días</button>
+        </section>
+      ) : null}
 
       {error ? <div className="error-box">{error}</div> : null}
 
@@ -437,10 +535,10 @@ function App() {
 
       <section className="charts-grid">
         <div className="chart-card wide">
-          <div className="card-title"><CalendarDays size={18} /><h2>Profit acumulado</h2></div>
+          <div className="card-title"><CalendarDays size={18} /><h2>Profit acumulado</h2><small>Haz clic en un punto para filtrar ese día</small></div>
           {loading ? <div className="loading">Cargando datos...</div> : (
             <ResponsiveContainer width="100%" height={320}>
-              <LineChart data={lineData}>
+              <LineChart data={lineData} onClick={(state) => selectChartDate(state?.activePayload?.[0]?.payload?.dateKey)}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.08)" />
                 <XAxis dataKey="fecha" stroke="#a9abb7" tick={{ fontSize: 12 }} />
                 <YAxis stroke="#a9abb7" tick={{ fontSize: 12 }} />

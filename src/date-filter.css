@@ -1,0 +1,138 @@
+.date-range-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.date-range-filters label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.045);
+  color: #a9abb7;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  transition: border-color 0.25s ease, background 0.25s ease, transform 0.25s ease;
+}
+
+.date-range-filters label:hover {
+  transform: translateY(-1px);
+  border-color: rgba(217, 165, 43, 0.55);
+  background: rgba(217, 165, 43, 0.08);
+}
+
+.date-range-filters input[type="date"] {
+  min-height: 38px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #ffffff;
+  font-weight: 800;
+  color-scheme: dark;
+}
+
+.clear-date-filters {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.055);
+  color: #f4c542;
+  font-weight: 900;
+  cursor: pointer;
+  transition: transform 0.25s ease, border-color 0.25s ease, background 0.25s ease, color 0.25s ease;
+}
+
+.clear-date-filters:hover {
+  transform: translateY(-2px);
+  border-color: rgba(46, 229, 157, 0.45);
+  background: rgba(46, 229, 157, 0.1);
+  color: #2ee59d;
+}
+
+.selected-date-chip {
+  margin: -8px 0 20px;
+  padding: 14px 18px;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid rgba(46, 229, 157, 0.35);
+  animation: chipSlideIn 0.28s ease both;
+}
+
+.selected-date-chip span {
+  color: #d6d8df;
+  font-weight: 700;
+}
+
+.selected-date-chip strong {
+  color: #2ee59d;
+}
+
+.selected-date-chip button {
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #d9a52b, #f4c542);
+  color: #07090d;
+  font-weight: 950;
+  cursor: pointer;
+  transition: transform 0.25s ease, filter 0.25s ease;
+}
+
+.selected-date-chip button:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+}
+
+.card-title small {
+  color: #8f93a1;
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-left: auto;
+}
+
+.recharts-dot,
+.recharts-active-dot {
+  cursor: pointer;
+}
+
+@keyframes chipSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 900px) {
+  .date-range-filters {
+    width: 100%;
+  }
+
+  .date-range-filters label {
+    flex: 1;
+    min-width: 190px;
+    justify-content: space-between;
+  }
+
+  .selected-date-chip {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .selected-date-chip button {
+    width: 100%;
+  }
+}
