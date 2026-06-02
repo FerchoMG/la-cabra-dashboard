@@ -4,6 +4,7 @@ import { Trophy, Target, TrendingUp, Percent, Medal, RefreshCcw, Search, Crown, 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from 'recharts'
 import './styles.css'
 import './vip.css'
+import './performance.css'
 import './date-filter.css'
 
 const SHEET_ID = '1g3jc06lKdf2wczWF8RfBHsvBvXcnwZvBN57pr5o8H58'
@@ -112,6 +113,42 @@ function dateTime(value) {
   return parseDate(value)?.getTime() || 0
 }
 
+function toDateKey(value) {
+  const date = parseDate(value)
+  if (!date) return ''
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+function monthId(value) {
+  const date = parseDate(value)
+  if (!date) return ''
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  return `${y}-${m}`
+}
+
+function formatMonthCompact(value) {
+  const date = parseDate(value)
+  if (!date) return value || '-'
+  const month = new Intl.DateTimeFormat('es', { month: 'short' }).format(date).replace('.', '')
+  return `${month.charAt(0).toUpperCase()}${month.slice(1)} ${date.getFullYear()}`
+}
+
+function startOfMonthFromId(id) {
+  const [year, month] = String(id || '').split('-').map(Number)
+  if (!year || !month) return null
+  return new Date(year, month - 1, 1)
+}
+
+function safeAvg(rows, key) {
+  const valid = rows.filter(row => Number.isFinite(row[key]) && row[key] > 0)
+  if (!valid.length) return 0
+  return valid.reduce((sum, row) => sum + row[key], 0) / valid.length
+}
+
 function isClosedBet(row) {
   const result = normalizeKey(row?.resultado)
 
@@ -138,15 +175,6 @@ function formatDate(value) {
   return new Intl.DateTimeFormat('es', { day: '2-digit', month: 'short', year: 'numeric' }).format(date)
 }
 
-function dateKey(value) {
-  const date = parseDate(value)
-  if (!date) return ''
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
 function parseInputDate(value) {
   if (!value) return null
   const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/)
@@ -156,7 +184,7 @@ function parseInputDate(value) {
 }
 
 function sameDay(a, b) {
-  return dateKey(a) === dateKey(b)
+  return toDateKey(a) === toDateKey(b)
 }
 
 
@@ -267,6 +295,7 @@ function App() {
   const [endDate, setEndDate] = useState('')
   const [selectedDate, setSelectedDate] = useState('')
   const [bankAmount, setBankAmount] = useState('500')
+  const [calendarMonth, setCalendarMonth] = useState('')
 
   async function loadData(selected = league) {
     setLoading(true)
@@ -314,11 +343,13 @@ function App() {
   const handleStartDateChange = (value) => {
     setStartDate(value)
     setSelectedDate('')
+    setMonthFilter('Todos')
   }
 
   const handleEndDateChange = (value) => {
     setEndDate(value)
     setSelectedDate('')
+    setMonthFilter('Todos')
   }
 
   const clearDateFilters = () => {
@@ -328,7 +359,7 @@ function App() {
     setMonthFilter('Todos')
   }
 
-  const selectChartDate = (key) => {
+  const selectDashboardDate = (key) => {
     if (!key) return
     setSelectedDate(key)
     setStartDate('')
@@ -397,16 +428,14 @@ function App() {
   const lineData = useMemo(() => {
     const dailyMap = new Map()
 
-    filtered
-      .filter(isClosedBet)
-      .forEach((row) => {
-        const key = dateKey(row.fecha)
-        if (!key) return
-        const current = dailyMap.get(key) || { dateKey: key, rawDate: row.fecha, diario: 0, picks: 0 }
-        current.diario += row.profit
-        current.picks += 1
-        dailyMap.set(key, current)
-      })
+    filtered.filter(isClosedBet).forEach((row) => {
+      const key = toDateKey(row.fecha)
+      if (!key) return
+      const current = dailyMap.get(key) || { dateKey: key, rawDate: row.fecha, diario: 0, picks: 0 }
+      current.diario += row.profit
+      current.picks += 1
+      dailyMap.set(key, current)
+    })
 
     let acc = 0
     return Array.from(dailyMap.values())
@@ -440,6 +469,129 @@ function App() {
       .sort((a, b) => Math.abs(b.profit) - Math.abs(a.profit))
       .slice(0, 10)
   }, [filtered, league])
+
+
+  const unitValue = stats.unitValue || 0
+
+  const monthlySummary = useMemo(() => {
+    const map = new Map()
+
+    filtered.forEach(row => {
+      const date = parseDate(row.fecha)
+      if (!date) return
+      const key = monthId(row.fecha)
+      if (!key) return
+      if (!map.has(key)) {
+        map.set(key, {
+          id: key,
+          monthDate: new Date(date.getFullYear(), date.getMonth(), 1),
+          monthLabel: formatMonthCompact(date),
+          bets: 0,
+          closed: [],
+          resolved: [],
+          wins: 0,
+          losses: 0,
+          profit: 0
+        })
+      }
+
+      const item = map.get(key)
+      item.bets += 1
+
+      if (isClosedBet(row)) {
+        item.closed.push(row)
+        item.profit += row.profit
+      }
+
+      const result = normalizeKey(row.resultado)
+      if (['ganada', 'ganado', 'win', 'won'].includes(result)) {
+        item.wins += 1
+        item.resolved.push(row)
+      }
+      if (['perdida', 'perdido', 'loss', 'lost'].includes(result)) {
+        item.losses += 1
+        item.resolved.push(row)
+      }
+    })
+
+    return Array.from(map.values())
+      .map(item => ({
+        ...item,
+        avgOdds: safeAvg(item.closed, 'cuota'),
+        winrate: item.resolved.length ? (item.wins / item.resolved.length) * 100 : 0,
+        profitUsd: item.profit * unitValue
+      }))
+      .sort((a, b) => b.monthDate.getTime() - a.monthDate.getTime())
+  }, [filtered, unitValue])
+
+  const calendarOptions = monthlySummary.map(item => ({ id: item.id, label: item.monthLabel }))
+  const selectedCalendarMonth = calendarOptions.some(item => item.id === calendarMonth)
+    ? calendarMonth
+    : calendarOptions[0]?.id || ''
+
+  const calendarData = useMemo(() => {
+    const monthStart = startOfMonthFromId(selectedCalendarMonth)
+    if (!monthStart) {
+      return { label: '-', totalProfitUsd: 0, weeks: [] }
+    }
+
+    const year = monthStart.getFullYear()
+    const month = monthStart.getMonth()
+    const daysInMonth = new Date(year, month + 1, 0).getDate()
+    const firstDay = monthStart.getDay()
+    const dailyMap = new Map()
+
+    filtered.filter(isClosedBet).forEach(row => {
+      const date = parseDate(row.fecha)
+      if (!date || date.getFullYear() !== year || date.getMonth() !== month) return
+      const key = toDateKey(date)
+      const current = dailyMap.get(key) || { profit: 0, bets: 0 }
+      current.profit += row.profit
+      current.bets += 1
+      dailyMap.set(key, current)
+    })
+
+    const cells = []
+    const prevMonthDays = new Date(year, month, 0).getDate()
+
+    for (let i = firstDay - 1; i >= 0; i -= 1) {
+      cells.push({ day: prevMonthDays - i, outside: true, profit: 0, bets: 0, key: `prev-${i}` })
+    }
+
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const date = new Date(year, month, day)
+      const key = toDateKey(date)
+      const dayData = dailyMap.get(key) || { profit: 0, bets: 0 }
+      cells.push({
+        day,
+        outside: false,
+        key,
+        profit: Number(dayData.profit.toFixed(2)),
+        profitUsd: dayData.profit * unitValue,
+        bets: dayData.bets,
+        dateLabel: formatDate(date)
+      })
+    }
+
+    let nextDay = 1
+    while (cells.length % 7 !== 0) {
+      cells.push({ day: nextDay, outside: true, profit: 0, bets: 0, key: `next-${nextDay}` })
+      nextDay += 1
+    }
+
+    const weeks = []
+    for (let i = 0; i < cells.length; i += 7) {
+      weeks.push(cells.slice(i, i + 7))
+    }
+
+    const totalProfit = Array.from(dailyMap.values()).reduce((sum, item) => sum + item.profit, 0)
+
+    return {
+      label: formatMonthCompact(monthStart),
+      totalProfitUsd: totalProfit * unitValue,
+      weeks
+    }
+  }, [filtered, selectedCalendarMonth, unitValue])
 
   const vipGroupLabel = league === 'FREE' ? 'grupo FREE' : `grupo VIP ${league}`
   const profitSign = stats.simulatedProfitUsd >= 0 ? '+' : ''
@@ -475,10 +627,10 @@ function App() {
       </section>
 
       {selectedDate ? (
-        <section className="selected-date-chip glass-panel">
-          <span>Filtrando solo el día <strong>{activeDateLabel}</strong></span>
+        <div className="selected-date-chip glass-panel">
+          <span>Día seleccionado: <strong>{activeDateLabel}</strong></span>
           <button type="button" onClick={() => setSelectedDate('')}>Ver todos los días</button>
-        </section>
+        </div>
       ) : null}
 
       {error ? <div className="error-box">{error}</div> : null}
@@ -538,7 +690,7 @@ function App() {
           <div className="card-title"><CalendarDays size={18} /><h2>Profit acumulado</h2><small>Haz clic en un punto para filtrar ese día</small></div>
           {loading ? <div className="loading">Cargando datos...</div> : (
             <ResponsiveContainer width="100%" height={320}>
-              <LineChart data={lineData} onClick={(state) => selectChartDate(state?.activePayload?.[0]?.payload?.dateKey)}>
+              <LineChart data={lineData} onClick={(state) => selectDashboardDate(state?.activePayload?.[0]?.payload?.dateKey)}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.08)" />
                 <XAxis dataKey="fecha" stroke="#a9abb7" tick={{ fontSize: 12 }} />
                 <YAxis stroke="#a9abb7" tick={{ fontSize: 12 }} />
@@ -610,6 +762,79 @@ function App() {
               })}
             </tbody>
           </table>
+        </div>
+      </section>
+
+
+      <section className="performance-grid">
+        <div className="calendar-card performance-card">
+          <div className="performance-head">
+            <div>
+              <span>Calendario de rendimiento</span>
+              <h2>Profit diario en dólares</h2>
+            </div>
+            <select value={selectedCalendarMonth} onChange={e => setCalendarMonth(e.target.value)}>
+              {calendarOptions.length ? calendarOptions.map(item => <option key={item.id} value={item.id}>{item.label}</option>) : <option>Sin datos</option>}
+            </select>
+          </div>
+          <div className={`calendar-total ${calendarData.totalProfitUsd >= 0 ? 'positive' : 'negative'}`}>
+            Total profit: {calendarData.totalProfitUsd >= 0 ? '+' : ''}{formatCurrency(calendarData.totalProfitUsd)}
+          </div>
+          <div className="calendar-weekdays">
+            {['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((day, index) => <span key={`${day}-${index}`}>{day}</span>)}
+          </div>
+          <div className="calendar-month-grid">
+            {calendarData.weeks.flat().map(day => {
+              const hasProfit = !day.outside && day.bets > 0
+              const tone = day.profit > 0 ? 'win-day' : day.profit < 0 ? 'loss-day' : 'neutral-day'
+              return (
+                <button key={day.key} className={`calendar-day ${day.outside ? 'outside' : ''} ${hasProfit ? tone : ''}`} type="button" title={day.dateLabel || ''} onClick={() => !day.outside && selectDashboardDate(day.key)}>
+                  <span>{day.day}</span>
+                  {hasProfit ? <strong>{day.profitUsd >= 0 ? '+' : ''}{formatCurrency(day.profitUsd)}</strong> : null}
+                  {hasProfit ? <small>{day.profit.toFixed(2)}u</small> : null}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="monthly-card performance-card">
+          <div className="performance-head">
+            <div>
+              <span>Resumen mensual</span>
+              <h2>Profit por mes</h2>
+            </div>
+            <small>Dinámico según tu bank de {formatCurrency(stats.simulatedBank)}</small>
+          </div>
+          <div className="monthly-table-wrap">
+            <table className="monthly-table">
+              <thead>
+                <tr>
+                  <th>Mes</th>
+                  <th>Apuestas</th>
+                  <th>Cuota</th>
+                  <th>% Vic.</th>
+                  <th>U G/P</th>
+                  <th>$ G/P</th>
+                </tr>
+              </thead>
+              <tbody>
+                {monthlySummary.map(item => (
+                  <tr key={item.id}>
+                    <td>{item.monthLabel}</td>
+                    <td>{item.bets}</td>
+                    <td>{item.avgOdds.toFixed(2)}</td>
+                    <td>{item.winrate.toFixed(2)}%</td>
+                    <td className={item.profit >= 0 ? 'profit-pos' : 'profit-neg'}>{item.profit >= 0 ? '+' : ''}{item.profit.toFixed(2)}u</td>
+                    <td className={item.profitUsd >= 0 ? 'profit-pos' : 'profit-neg'}>{item.profitUsd >= 0 ? '+' : ''}{formatCurrency(item.profitUsd)}</td>
+                  </tr>
+                ))}
+                {!monthlySummary.length ? (
+                  <tr><td colSpan="6" className="empty-row">No hay datos para mostrar con los filtros actuales.</td></tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
     </main>
