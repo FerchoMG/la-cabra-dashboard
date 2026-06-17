@@ -6,12 +6,14 @@ import './styles.css'
 import './vip.css'
 import './performance.css'
 import './date-filter.css'
+import './worldcup.css'
 
 const SHEET_ID = '1g3jc06lKdf2wczWF8RfBHsvBvXcnwZvBN57pr5o8H58'
 const LEAGUES = [
   { label: 'NBA', sheet: 'NBA' },
   { label: 'MLB', sheet: 'MLB' },
-  { label: 'FREE', sheet: 'free' }
+  { label: 'FREE', sheet: 'free' },
+  { label: 'MUNDIAL', sheet: 'Mundial' }
 ]
 
 const RESULT_COLORS = {
@@ -214,33 +216,46 @@ function leagueToSheetName(leagueLabel) {
 function extractMarketCategory(value, league) {
   const text = normalizeKey(value)
 
-  const categories = league === 'MLB'
+  const categories = league === 'MUNDIAL'
     ? [
-        ['Strikeouts / Ponches', ['strikeout', 'strikeouts', 'ponche', 'ponches', 'ks', ' k ', 'k\'s']],
-        ['Bases totales', ['bases totales', 'total bases', 'tb']],
-        ['Hits', [' hit', 'hits', 'sencillo']],
-        ['Carreras', ['carreras', 'runs']],
-        ['Carreras impulsadas', ['carreras impulsadas', 'rbi', 'rbis', 'impulsadas']],
-        ['Home runs', ['home run', 'homerun', 'jonron', 'hr']],
-        ['Bases robadas', ['base robada', 'bases robadas', 'stolen base', 'sb']],
-        ['Walks / Boletos', ['walk', 'walks', 'boletos', 'base por bola', 'bb']]
+        ['Ganador / Resultado', ['gana', 'ganador', 'moneyline', 'resultado', '1x2', 'empate', 'draw']],
+        ['Over / Under goles', ['over', 'under', 'mas de', 'menos de', 'goles', 'goals', 'total goles']],
+        ['Ambos anotan', ['ambos anotan', 'btts', 'both teams to score', 'anotan ambos']],
+        ['Handicap', ['handicap', 'hcap', 'asian', 'asiatico', '+0.5', '-0.5', '+1', '-1']],
+        ['Corners', ['corner', 'corners', 'tiros de esquina', 'esquinas']],
+        ['Tarjetas', ['tarjeta', 'tarjetas', 'cards', 'amarilla', 'roja']],
+        ['Tiros al arco', ['tiros al arco', 'shots on target', 'remates al arco', 'sot']],
+        ['Tiros / Remates', ['tiros', 'remates', 'shots']],
+        ['Jugador', ['jugador', 'gol de', 'anota', 'marcador', 'player']],
+        ['Doble oportunidad', ['doble oportunidad', 'double chance', '1x', 'x2', '12']]
       ]
-    : [
-        ['Puntos', ['puntos', 'points', 'pts']],
-        ['Rebotes', ['rebotes', 'rebounds', 'rebs', 'reb']],
-        ['Asistencias', ['asistencias', 'assists', 'asts', 'ast']],
-        ['PRA', ['pra', 'puntos rebotes asistencias', 'points rebounds assists']],
-        ['Puntos + Rebotes', ['puntos + rebotes', 'points + rebounds', 'pts+reb', 'pr']],
-        ['Puntos + Asistencias', ['puntos + asistencias', 'points + assists', 'pts+ast', 'pa']],
-        ['Rebotes + Asistencias', ['rebotes + asistencias', 'rebounds + assists', 'reb+ast', 'ra']],
-        ['Triples', ['triples', '3pt', '3pts', 'threes', '3-pointers']],
-        ['Robos', ['robos', 'steals', 'stl']],
-        ['Bloqueos', ['bloqueos', 'blocks', 'blk']],
-        ['Pérdidas', ['perdidas', 'turnovers', 'to']]
-      ]
+    : league === 'MLB'
+      ? [
+          ['Strikeouts / Ponches', ['strikeout', 'strikeouts', 'ponche', 'ponches', 'ks', ' k ', 'k\'s']],
+          ['Bases totales', ['bases totales', 'total bases', 'tb']],
+          ['Hits', [' hit', 'hits', 'sencillo']],
+          ['Carreras', ['carreras', 'runs']],
+          ['Carreras impulsadas', ['carreras impulsadas', 'rbi', 'rbis', 'impulsadas']],
+          ['Home runs', ['home run', 'homerun', 'jonron', 'hr']],
+          ['Bases robadas', ['base robada', 'bases robadas', 'stolen base', 'sb']],
+          ['Walks / Boletos', ['walk', 'walks', 'boletos', 'base por bola', 'bb']]
+        ]
+      : [
+          ['Puntos', ['puntos', 'points', 'pts']],
+          ['Rebotes', ['rebotes', 'rebounds', 'rebs', 'reb']],
+          ['Asistencias', ['asistencias', 'assists', 'asts', 'ast']],
+          ['PRA', ['pra', 'puntos rebotes asistencias', 'points rebounds assists']],
+          ['Puntos + Rebotes', ['puntos + rebotes', 'points + rebounds', 'pts+reb', 'pr']],
+          ['Puntos + Asistencias', ['puntos + asistencias', 'points + assists', 'pts+ast', 'pa']],
+          ['Rebotes + Asistencias', ['rebotes + asistencias', 'rebounds + assists', 'reb+ast', 'ra']],
+          ['Triples', ['triples', '3pt', '3pts', 'threes', '3-pointers']],
+          ['Robos', ['robos', 'steals', 'stl']],
+          ['Bloqueos', ['bloqueos', 'blocks', 'blk']],
+          ['Pérdidas', ['perdidas', 'turnovers', 'to']]
+        ]
 
   const found = categories.find(([, keys]) => keys.some(key => text.includes(normalizeKey(key))))
-  return found ? found[0] : 'Otros mercados'
+  return found ? found[0] : league === 'MUNDIAL' ? 'Otros mercados mundialistas' : 'Otros mercados'
 }
 
 async function fetchSheet(sheetName) {
@@ -593,19 +608,24 @@ function App() {
     }
   }, [filtered, selectedCalendarMonth, unitValue])
 
-  const vipGroupLabel = league === 'FREE' ? 'grupo FREE' : `grupo VIP ${league}`
+  const vipGroupLabel = league === 'MUNDIAL' ? 'registro VIP del Mundial' : league === 'FREE' ? 'grupo FREE' : `grupo VIP ${league}`
   const profitSign = stats.simulatedProfitUsd >= 0 ? '+' : ''
   const activeDateLabel = selectedDate ? formatDate(selectedDate) : ''
+  const isWorldCup = league === 'MUNDIAL'
+  const dashboardTitle = isWorldCup ? 'LA CABRA MUNDIAL' : `LA CABRA ${league}`
+  const dashboardDescription = isWorldCup
+    ? 'Registro mundialista de picks conectado a Google Sheets. Profit, calendario y rendimiento del torneo en una sola página.'
+    : 'Control de apuestas deportivas conectado a Google Sheets. Disciplina, gestión y ganancias.'
 
   return (
-    <main className="app-shell">
-      <section className="hero">
+    <main className={`app-shell ${isWorldCup ? 'worldcup-mode' : ''}`}>
+      <section className={`hero ${isWorldCup ? 'worldcup-hero' : ''}`}>
         <div className="hero-overlay" />
         <img className="logo-goat" src="./la-cabra-logo.jpg" alt="La Cabra NBA" />
         <div className="hero-content">
-          <div className="eyebrow"><Crown size={18} /> Dashboard profesional</div>
-          <h1>LA CABRA <span>{league}</span></h1>
-          <p>Control de apuestas deportivas conectado a Google Sheets. Disciplina, gestión y ganancias.</p>
+          <div className="eyebrow"><Crown size={18} /> {isWorldCup ? 'Dashboard mundialista' : 'Dashboard profesional'}</div>
+          <h1>{isWorldCup ? <>LA CABRA <span>MUNDIAL</span></> : <>LA CABRA <span>{league}</span></>}</h1>
+          <p>{dashboardDescription}</p>
           <div className="league-switch">
             {LEAGUES.map(item => (
               <button key={item.label} className={league === item.label ? 'active' : ''} onClick={() => setLeague(item.label)}>{item.label}</button>
@@ -613,6 +633,22 @@ function App() {
           </div>
         </div>
       </section>
+
+      {isWorldCup ? (
+        <section className="worldcup-banner glass-panel">
+          <div>
+            <span>Modo Copa del Mundo</span>
+            <h2>Registro especial del Mundial</h2>
+            <p>Diseño con vibra de estadio, mercados de fútbol y simulador dinámico según el bank del usuario.</p>
+          </div>
+          <div className="worldcup-badges">
+            <strong>⚽ Goles</strong>
+            <strong>🏟️ Corners</strong>
+            <strong>🟨 Tarjetas</strong>
+            <strong>🏆 Resultado</strong>
+          </div>
+        </section>
+      ) : null}
 
       <section className="toolbar glass-panel">
         <div className="input-wrap"><Search size={18} /><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar partido, jugador o mercado" /></div>
@@ -712,7 +748,7 @@ function App() {
           </ResponsiveContainer>
         </div>
         <div className="chart-card wide market-chart-card">
-          <div className="card-title"><TrendingUp size={18} /><h2>Mercados por profit</h2></div>
+          <div className="card-title"><TrendingUp size={18} /><h2>{isWorldCup ? 'Mercados mundialistas por profit' : 'Mercados por profit'}</h2></div>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={marketData}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.08)" />
@@ -727,7 +763,7 @@ function App() {
 
       <section className="table-card">
         <div className="table-head">
-          <h2>Registro de picks</h2>
+          <h2>{isWorldCup ? 'Registro de picks mundialistas' : 'Registro de picks'}</h2>
           <span>{filtered.length} apuestas</span>
         </div>
         <div className="table-wrap">

@@ -1,0 +1,180 @@
+/* Modo Mundial: capa visual adicional sin tocar el diseño base */
+.worldcup-mode {
+  background:
+    radial-gradient(circle at top left, rgba(23, 171, 100, 0.22), transparent 30%),
+    radial-gradient(circle at top right, rgba(255, 209, 102, 0.16), transparent 30%),
+    linear-gradient(180deg, #07120c 0%, #08100d 38%, #07090c 100%);
+}
+
+.worldcup-mode::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 68px 68px;
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,.9), transparent 85%);
+  z-index: 0;
+}
+
+.worldcup-mode > * {
+  position: relative;
+  z-index: 1;
+}
+
+.worldcup-hero {
+  border-color: rgba(255, 209, 102, 0.55) !important;
+  background:
+    linear-gradient(135deg, rgba(6, 64, 35, 0.88), rgba(5, 10, 9, 0.92)),
+    radial-gradient(circle at 80% 15%, rgba(255, 209, 102, 0.34), transparent 32%);
+  overflow: hidden;
+}
+
+.worldcup-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,.035) 0 2px, transparent 2px 120px),
+    linear-gradient(90deg, transparent 0 48%, rgba(255,255,255,.15) 49%, rgba(255,255,255,.15) 51%, transparent 52% 100%);
+  opacity: .75;
+  pointer-events: none;
+}
+
+.worldcup-hero::after {
+  content: "⚽";
+  position: absolute;
+  right: clamp(22px, 7vw, 90px);
+  bottom: -22px;
+  font-size: clamp(88px, 15vw, 190px);
+  opacity: .12;
+  filter: grayscale(1);
+  transform: rotate(-12deg);
+  pointer-events: none;
+}
+
+.worldcup-mode .hero-content h1 span {
+  color: #ffd166;
+  text-shadow: 0 0 26px rgba(255, 209, 102, .28);
+}
+
+.worldcup-mode .eyebrow {
+  background: rgba(255, 209, 102, 0.14);
+  border: 1px solid rgba(255, 209, 102, 0.28);
+  color: #ffe29a;
+}
+
+.worldcup-mode .league-switch button.active {
+  background: linear-gradient(135deg, #ffd166, #2ee59d);
+  color: #06120c;
+  box-shadow: 0 10px 34px rgba(46, 229, 157, .18);
+}
+
+.worldcup-banner {
+  margin: 22px 0;
+  padding: 24px;
+  border-radius: 26px;
+  border: 1px solid rgba(255, 209, 102, 0.38);
+  background:
+    radial-gradient(circle at 10% 0%, rgba(46, 229, 157, .22), transparent 34%),
+    linear-gradient(135deg, rgba(10, 36, 22, .92), rgba(9, 12, 14, .9));
+  display: grid;
+  grid-template-columns: 1.15fr .85fr;
+  gap: 20px;
+  align-items: center;
+  box-shadow: 0 18px 70px rgba(0,0,0,.28);
+}
+
+.worldcup-banner span {
+  display: inline-flex;
+  width: fit-content;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: rgba(46, 229, 157, .14);
+  color: #2ee59d;
+  font-size: .78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.worldcup-banner h2 {
+  margin: 12px 0 6px;
+  color: #fff;
+  font-size: clamp(1.35rem, 2.2vw, 2.15rem);
+  letter-spacing: -.04em;
+}
+
+.worldcup-banner p {
+  margin: 0;
+  color: #b9c3bc;
+  line-height: 1.55;
+}
+
+.worldcup-badges {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.worldcup-badges strong {
+  padding: 14px 12px;
+  border-radius: 18px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.08);
+  color: #fff;
+  text-align: center;
+  transition: transform .25s ease, border-color .25s ease, background .25s ease;
+}
+
+.worldcup-badges strong:hover {
+  transform: translateY(-3px);
+  border-color: rgba(255, 209, 102, .42);
+  background: rgba(255, 209, 102, .09);
+}
+
+.worldcup-mode .metric-card.gold,
+.worldcup-mode .chart-card,
+.worldcup-mode .table-card,
+.worldcup-mode .performance-card {
+  border-color: rgba(255, 209, 102, 0.22);
+}
+
+.worldcup-mode .metric-card.green {
+  box-shadow: 0 18px 45px rgba(46, 229, 157, .08);
+}
+
+.worldcup-mode .vip-simulator-card {
+  border-color: rgba(255, 209, 102, .45);
+  background:
+    radial-gradient(circle at top right, rgba(255, 209, 102, .19), transparent 30%),
+    radial-gradient(circle at bottom left, rgba(46, 229, 157, .16), transparent 34%),
+    linear-gradient(135deg, rgba(10, 32, 20, .96), rgba(8, 10, 14, .98));
+}
+
+.worldcup-mode .vip-simulator-card::before {
+  content: "CUP";
+}
+
+.worldcup-mode .calendar-day.win-day {
+  border-color: rgba(46, 229, 157, .42);
+  background: rgba(46, 229, 157, .11);
+}
+
+.worldcup-mode .calendar-day.loss-day {
+  border-color: rgba(255, 59, 48, .42);
+  background: rgba(255, 59, 48, .10);
+}
+
+@media (max-width: 780px) {
+  .worldcup-banner {
+    grid-template-columns: 1fr;
+    padding: 20px;
+  }
+
+  .worldcup-badges {
+    grid-template-columns: 1fr 1fr;
+  }
+}
