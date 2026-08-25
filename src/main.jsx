@@ -12,7 +12,7 @@ const SHEET_ID = '1g3jc06lKdf2wczWF8RfBHsvBvXcnwZvBN57pr5o8H58'
 const LEAGUES = [
   { label: 'NBA', sheet: 'NBA' },
   { label: 'MLB', sheet: 'MLB' },
-  { label: 'FREE', sheet: 'free' },
+  { label: 'FUTBOL', sheet: 'free' },
   { label: 'MUNDIAL', sheet: 'Mundial' }
 ]
 
