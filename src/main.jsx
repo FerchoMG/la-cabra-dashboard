@@ -16,6 +16,11 @@ const LEAGUES = [
   { label: 'MUNDIAL', sheet: 'Mundial' }
 ]
 
+const NBA_SEASONS = [
+  { id: '2026-27', label: '2026/27', caption: 'Temporada actual', start: '2026-07-01', end: '2027-07-01' },
+  { id: '2025-26', label: '2025/26', caption: 'Temporada anterior', start: '2025-07-01', end: '2026-07-01' }
+]
+
 const RESULT_COLORS = {
   ganada: '#2ee59d',
   perdida: '#ff3b30',
@@ -41,6 +46,15 @@ function parseNumber(value) {
     .replace(',', '.')
   const n = Number(cleaned)
   return Number.isFinite(n) ? n : 0
+}
+
+function profitFromResult(result, stake, odds) {
+  const status = normalizeKey(result)
+  if (['ganada', 'ganado', 'win', 'won'].includes(status)) {
+    return odds > 1 ? (odds - 1) * stake : 0
+  }
+  if (['perdida', 'perdido', 'loss', 'lost'].includes(status)) return -stake
+  return 0
 }
 
 function readCell(cell, colName) {
@@ -164,6 +178,9 @@ function isClosedBet(row) {
     'loss',
     'lost',
     'nula',
+    'nulo',
+    'anulada',
+    'anulado',
     'push',
     'void',
     'cancelada',
@@ -271,15 +288,21 @@ async function fetchSheet(sheetName) {
     cols.forEach((col, i) => {
       item[col] = readCell(row.c[i], col)
     })
+    const stake = parseNumber(item.Stake)
+    const cuota = parseNumber(item.Cuota)
+    const resultado = String(item.Resultado || '').trim()
+    const sheetProfit = String(item.Profit ?? '').trim()
     return {
       id: `${sheetName}-${index}`,
       fecha: item.Fecha,
       partido: item.Partido,
       mercado: item['Jugador + Mercado'],
-      stake: parseNumber(item.Stake),
-      cuota: parseNumber(item.Cuota),
-      resultado: String(item.Resultado || '').trim(),
-      profit: parseNumber(item.Profit),
+      stake,
+      cuota,
+      resultado,
+      profit: !sheetProfit || sheetProfit.startsWith('#')
+        ? profitFromResult(resultado, stake, cuota)
+        : parseNumber(item.Profit),
       bankroll: parseNumber(item.Bankroll)
     }
   }).filter((row) => row.fecha || row.partido || row.mercado)
@@ -300,6 +323,7 @@ function MetricCard({ icon: Icon, label, value, hint, tone = 'gold' }) {
 
 function App() {
   const [league, setLeague] = useState('NBA')
+  const [nbaSeason, setNbaSeason] = useState(NBA_SEASONS[0].id)
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -336,19 +360,49 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [league])
 
+  const activeNbaSeason = NBA_SEASONS.find(item => item.id === nbaSeason) || NBA_SEASONS[0]
+  const seasonRows = useMemo(() => {
+    if (league !== 'NBA') return rows
+    let seasonBankroll = 0
+    return rows
+      .filter(row => {
+        const day = toDateKey(row.fecha)
+        return day >= activeNbaSeason.start && day < activeNbaSeason.end
+      })
+      .map(row => {
+        if (!isClosedBet(row)) return { ...row, bankroll: null }
+        seasonBankroll += row.profit
+        return { ...row, bankroll: Number(seasonBankroll.toFixed(2)) }
+      })
+  }, [rows, league, activeNbaSeason])
+
+  function selectNbaSeason(id) {
+    if (id === nbaSeason) return
+    setNbaSeason(id)
+    setQuery('')
+    setResultFilter('Todos')
+    setMonthFilter('Todos')
+    setStartDate('')
+    setEndDate('')
+    setSelectedDate('')
+    setCalendarMonth('')
+  }
+
   const months = useMemo(() => {
-    const unique = Array.from(new Set(rows.map(r => monthKey(r.fecha))))
+    const unique = Array.from(new Set(seasonRows.map(r => monthKey(r.fecha))))
       .filter(month => month !== 'Sin fecha')
       .sort((a, b) => {
-        const sampleA = rows.find(r => monthKey(r.fecha) === a)?.fecha
-        const sampleB = rows.find(r => monthKey(r.fecha) === b)?.fecha
+        const sampleA = seasonRows.find(r => monthKey(r.fecha) === a)?.fecha
+        const sampleB = seasonRows.find(r => monthKey(r.fecha) === b)?.fecha
         return dateTime(sampleB) - dateTime(sampleA)
       })
-    const hasNoDate = rows.some(r => monthKey(r.fecha) === 'Sin fecha')
+    const hasNoDate = seasonRows.some(r => monthKey(r.fecha) === 'Sin fecha')
     const current = currentMonthKey()
-    const monthOptions = unique.includes(current) ? unique : [current, ...unique]
+    const today = toDateKey(new Date())
+    const currentBelongsToSeason = league !== 'NBA' || (today >= activeNbaSeason.start && today < activeNbaSeason.end)
+    const monthOptions = unique.includes(current) || !currentBelongsToSeason ? unique : [current, ...unique]
     return ['Todos', ...monthOptions, ...(hasNoDate ? ['Sin fecha'] : [])]
-  }, [rows])
+  }, [seasonRows, league, activeNbaSeason])
 
   const handleMonthChange = (value) => {
     setMonthFilter(value)
@@ -388,18 +442,22 @@ function App() {
     const rangeStart = start && end && start > end ? end : start
     const rangeEnd = start && end && start > end ? start : end
 
-    return rows.filter((row) => {
+    return seasonRows.filter((row) => {
       const q = normalizeKey(query)
       const rowDate = parseDate(row.fecha)
       const matchesQuery = !q || normalizeKey(`${row.partido} ${row.mercado}`).includes(q)
-      const matchesResult = resultFilter === 'Todos' || normalizeKey(row.resultado) === normalizeKey(resultFilter)
+      const result = normalizeKey(row.resultado)
+      const matchesResult = resultFilter === 'Todos'
+        || (resultFilter === 'Pendiente' && !isClosedBet(row))
+        || (resultFilter === 'Nula' && ['nula', 'nulo', 'anulada', 'anulado', 'push', 'void', 'cancelada', 'cancelado'].includes(result))
+        || result === normalizeKey(resultFilter)
       const matchesMonth = monthFilter === 'Todos' || monthKey(row.fecha) === monthFilter
       const matchesStart = !rangeStart || (rowDate && rowDate >= rangeStart)
       const matchesEnd = !rangeEnd || (rowDate && rowDate <= new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), rangeEnd.getDate(), 23, 59, 59, 999))
       const matchesSelectedDate = !selectedDate || sameDay(row.fecha, selectedDate)
       return matchesQuery && matchesResult && matchesMonth && matchesStart && matchesEnd && matchesSelectedDate
     })
-  }, [rows, query, resultFilter, monthFilter, startDate, endDate, selectedDate])
+  }, [seasonRows, query, resultFilter, monthFilter, startDate, endDate, selectedDate])
 
   const tableRows = useMemo(() => {
     return [...filtered].sort((a, b) => dateTime(b.fecha) - dateTime(a.fecha))
@@ -413,8 +471,8 @@ function App() {
     const resolved = closed.filter(r => ['ganada', 'ganado', 'win', 'won', 'perdida', 'perdido', 'loss', 'lost'].includes(normalizeKey(r.resultado)))
     const wins = closed.filter(r => ['ganada', 'ganado', 'win', 'won'].includes(normalizeKey(r.resultado))).length
     const losses = closed.filter(r => ['perdida', 'perdido', 'loss', 'lost'].includes(normalizeKey(r.resultado))).length
-    const push = closed.filter(r => ['nula', 'push', 'void', 'cancelada', 'cancelado'].includes(normalizeKey(r.resultado))).length
-    const pending = filtered.filter(r => ['pendiente', 'pending'].includes(normalizeKey(r.resultado))).length
+    const push = closed.filter(r => ['nula', 'nulo', 'anulada', 'anulado', 'push', 'void', 'cancelada', 'cancelado'].includes(normalizeKey(r.resultado))).length
+    const pending = filtered.filter(r => !isClosedBet(r)).length
     const totalProfit = closed.reduce((sum, row) => sum + row.profit, 0)
     const totalStake = closed.reduce((sum, row) => sum + row.stake, 0)
     const avgOdds = closed.length ? closed.reduce((sum, row) => sum + row.cuota, 0) / closed.length : 0
@@ -608,14 +666,22 @@ function App() {
     }
   }, [filtered, selectedCalendarMonth, unitValue])
 
-  const vipGroupLabel = league === 'MUNDIAL' ? 'registro VIP del Mundial' : league === 'FREE' ? 'grupo FREE' : `grupo VIP ${league}`
+  const vipGroupLabel = league === 'MUNDIAL'
+    ? 'registro VIP del Mundial'
+    : league === 'NBA'
+      ? `grupo VIP NBA de la temporada ${activeNbaSeason.label}`
+      : league === 'FUTBOL'
+        ? 'grupo FREE'
+        : `grupo VIP ${league}`
   const profitSign = stats.simulatedProfitUsd >= 0 ? '+' : ''
   const activeDateLabel = selectedDate ? formatDate(selectedDate) : ''
   const isWorldCup = league === 'MUNDIAL'
   const dashboardTitle = isWorldCup ? 'LA CABRA MUNDIAL' : `LA CABRA ${league}`
   const dashboardDescription = isWorldCup
     ? 'Registro mundialista de picks conectado a Google Sheets. Profit, calendario y rendimiento del torneo en una sola página.'
-    : 'Control de apuestas deportivas conectado a Google Sheets. Disciplina, gestión y ganancias.'
+    : league === 'NBA'
+      ? `Registro NBA ${activeNbaSeason.label} conectado a Google Sheets. Picks y rendimiento de esta temporada.`
+      : 'Control de apuestas deportivas conectado a Google Sheets. Disciplina, gestión y ganancias.'
 
   return (
     <main className={`app-shell ${isWorldCup ? 'worldcup-mode' : ''}`}>
@@ -633,6 +699,30 @@ function App() {
           </div>
         </div>
       </section>
+
+      {league === 'NBA' ? (
+        <section className="nba-season-panel glass-panel" aria-label="Temporadas NBA">
+          <div className="nba-season-copy">
+            <span>Registro NBA</span>
+            <strong>Elige la temporada</strong>
+          </div>
+          <div className="nba-season-tabs" role="tablist" aria-label="Temporadas NBA">
+            {NBA_SEASONS.map(season => (
+              <button
+                key={season.id}
+                type="button"
+                role="tab"
+                aria-selected={nbaSeason === season.id}
+                className={nbaSeason === season.id ? 'active' : ''}
+                onClick={() => selectNbaSeason(season.id)}
+              >
+                <small>{season.caption}</small>
+                <span>NBA {season.label}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {isWorldCup ? (
         <section className="worldcup-banner glass-panel">
@@ -763,7 +853,7 @@ function App() {
 
       <section className="table-card">
         <div className="table-head">
-          <h2>{isWorldCup ? 'Registro de picks mundialistas' : 'Registro de picks'}</h2>
+          <h2>{isWorldCup ? 'Registro de picks mundialistas' : league === 'NBA' ? `Registro NBA ${activeNbaSeason.label}` : 'Registro de picks'}</h2>
           <span>{filtered.length} apuestas</span>
         </div>
         <div className="table-wrap">
@@ -782,7 +872,8 @@ function App() {
             </thead>
             <tbody>
               {tableRows.map(row => {
-                const result = normalizeKey(row.resultado) || 'otro'
+                const result = normalizeKey(row.resultado) || 'pendiente'
+                const resultTone = ['nulo', 'anulada', 'anulado'].includes(result) ? 'nula' : result
                 return (
                   <tr key={row.id}>
                     <td>{formatDate(row.fecha)}</td>
@@ -790,9 +881,9 @@ function App() {
                     <td className="market-cell">{row.mercado}</td>
                     <td>{row.stake.toFixed(2)}</td>
                     <td>{row.cuota.toFixed(2)}</td>
-                    <td><span className={`pill ${result}`}>{row.resultado || '-'}</span></td>
+                    <td><span className={`pill ${resultTone}`}>{row.resultado || 'Pendiente'}</span></td>
                     <td className={row.profit >= 0 ? 'profit-pos' : 'profit-neg'}>{row.profit.toFixed(2)}</td>
-                    <td>{row.bankroll.toFixed(2)}</td>
+                    <td>{row.bankroll === null ? '-' : row.bankroll.toFixed(2)}</td>
                   </tr>
                 )
               })}
